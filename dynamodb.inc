@@ -5,7 +5,8 @@
  * Include file to define cache methods for DynamoDB integration.
  */
 
-require dirname(__FILE__) . '/vendor/autoload.php';
+$sdk_path = variable_get('dynamodb_sdk_path', dirname(__FILE__)) . '/vendor/autoload.php';
+require $sdk_path;
 
 use Aws\DynamoDb\DynamoDbClient;
 
