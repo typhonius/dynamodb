@@ -2,7 +2,7 @@
 
 /**
  * @file
- *
+ * Include file to define cache methods for DynamoDB integration.
  */
 
 require dirname(__FILE__) . '/vendor/autoload.php';
