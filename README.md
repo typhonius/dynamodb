@@ -4,7 +4,6 @@ Requirements
 
 Installation
 ------------
-
 - Download the [http://aws.amazon.com/sdkforphp/](AWS SDK for PHP) to a location the webserver is able to access.
 - The default location is /path/to/dynamodb although this may be overridden by manually setting the $conf['dynamodb_sdk_path'] in settings.php.
 
