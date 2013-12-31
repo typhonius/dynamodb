@@ -40,7 +40,21 @@ class DynamodbCache implements DrupalCacheInterface {
       )
     ));
 
-    var_dump($result);
+    // Check to see if we have a result before attempting to gzuncompress or
+    // PHP will error out.
+    if ($data = $result['Item']['data']['B']) {
+      $cache = new stdClass();
+
+      // AWS runs a base64_encode on any binary type data stored in DynamoDB.
+      // Because of this, a base64_decode is required first on data retrieved
+      // from DynamoDB.
+      $cache->data = unserialize(gzuncompress(base64_decode($data)));
+      $cache->expire = $result['Item']['expire']['N'];
+      $cache->cid = $cid;
+      $cache->bin = $this->bin;
+
+      return $cache;
+    }
 
     return FALSE;
   }
@@ -58,22 +72,19 @@ class DynamodbCache implements DrupalCacheInterface {
   function set($cid, $data, $expire = CACHE_PERMANENT) {
     global $conf;
 
+    // Since DynamoDB has a max item size of 64k, we must compress the data to
+    // be cached in order to store it.
     $data = gzcompress(serialize($data));
-//    var_dump($cid);
-//    var_dump($this->bin);
-//    var_dump(strlen($data));
 
     $result = $this->dynamo->putItem(array(
       'TableName' => $conf['dynamodb_table'],
       'Item' => array(
         'cid'      => array('S' => $cid),
         'bin'    => array('S' => $this->bin),
-        'data'   => array('S' => $data),
-        'expire' => array('S' => $expire),
-      )
+        'data'   => array('B' => $data),
+        'expire' => array('N' => $expire),
+      ),
     ));
-
-    var_dump($result);
 
   }
 
