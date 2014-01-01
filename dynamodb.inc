@@ -54,7 +54,7 @@ class DynamodbCache implements DrupalCacheInterface {
       $cache->cid = $cid;
       $cache->bin = $this->bin;
 
-      return $cache;
+      return $this->isValid($cache) ? $cache : FALSE;
     }
 
     return FALSE;
@@ -89,15 +89,166 @@ class DynamodbCache implements DrupalCacheInterface {
 
   }
 
+  function isValid($cache) {
+    // TODO CACHE_PERMANENT
+    if (isset($cache->expire) && $cache->expire <= REQUEST_TIME) {
+      return TRUE;
+    }
+
+    return FALSE;
+  }
+
   /**
    * Implements DrupalCacheInterface::clear().
    */
   function clear($cid = NULL, $wildcard = FALSE) {
+    global $conf;
 
+    if (empty($cid)) {
+      if (variable_get('cache_lifetime', 0)) {
+        // Logic has been copied from DrupalDatabaseCache::clear()
+        $cache_flush = variable_get('cache_flush_' . $this->bin, 0);
+        if ($cache_flush == 0) {
+          // This is the first request to clear the cache, start a timer.
+          variable_set('cache_flush_' . $this->bin, REQUEST_TIME);
+        }
+        elseif (REQUEST_TIME > ($cache_flush + variable_get('cache_lifetime', 0))) {
+          $iterator = $this->dynamo->getIterator('Query', array(
+            'TableName'     => $conf['dynamodb_table'],
+            'KeyConditions' => array(
+              'expire' => array(
+                'AttributeValueList' => array(
+                  array('N' => 1),
+                  array('N' => REQUEST_TIME)
+                ),
+                'ComparisonOperator' => 'BETWEEN'
+              ),
+            ),
+          ));
+          foreach ($iterator as $item) {
+            $this->dynamo->deleteItem(array(
+              'TableName' => $conf['dynamodb_table'],
+              'Key' => array(
+                'cid'   => array('S' => $item['cid']['S']),
+                'bin'   => array('S' => $this->bin),
+              )
+            ));
+          }
+          variable_set('cache_flush_' . $this->bin, 0);
+        }
+      }
+      else {
+        $iterator = $this->dynamo->getIterator('Query', array(
+          'TableName'     => $conf['dynamodb_table'],
+          'KeyConditions' => array(
+            'expire' => array(
+              'AttributeValueList' => array(
+                array('N' => 1),
+                array('N' => REQUEST_TIME)
+              ),
+              'ComparisonOperator' => 'BETWEEN'
+            ),
+          ),
+        ));
+        foreach ($iterator as $item) {
+          $this->dynamo->deleteItem(array(
+            'TableName' => $conf['dynamodb_table'],
+            'Key' => array(
+              'cid'   => array('S' => $item['cid']['S']),
+              'bin'   => array('S' => $this->bin),
+            )
+          ));
+        }
+      }
+    }
+    else {
+      if ($wildcard) {
+        if ($cid == '*') {
+          $iterator = $this->dynamo->getIterator('Query', array(
+            'TableName'     => $conf['dynamodb_table'],
+            'KeyConditions' => array(
+              'bin' => array(
+                'AttributeValueList' => array(
+                  array('S' => $this->bin)
+                ),
+                'ComparisonOperator' => 'EQ'
+              ),
+            ),
+          ));
+          foreach ($iterator as $item) {
+            $this->dynamo->deleteItem(array(
+              'TableName' => $conf['dynamodb_table'],
+              'Key' => array(
+                'cid'   => array('S' => $item['cid']['S']),
+                'bin'   => array('S' => $this->bin),
+              )
+            ));
+          }        }
+        else {
+          $iterator = $this->dynamo->getIterator('Query', array(
+            'TableName'     => $conf['dynamodb_table'],
+            'KeyConditions' => array(
+              'cid' => array(
+                'AttributeValueList' => array(
+                  array('S' => $cid)
+                ),
+                'ComparisonOperator' => 'BEGINS_WITH'
+              ),
+              'bin' => array(
+                'AttributeValueList' => array(
+                  array('S' => $this->bin)
+                ),
+                'ComparisonOperator' => 'EQ'
+              ),
+            ),
+          ));
+          foreach ($iterator as $item) {
+            $this->dynamo->deleteItem(array(
+              'TableName' => $conf['dynamodb_table'],
+              'Key' => array(
+                'cid'   => array('S' => $item['cid']['S']),
+                'bin'   => array('S' => $this->bin),
+              )
+            ));
+          }        }
+      }
+      elseif (is_array($cid)) {
+        // deal with array
+      }
+      else {
+        // deal with exact cid and exact bin
+        $iterator = $this->dynamo->getIterator('Query', array(
+          'TableName'     => $conf['dynamodb_table'],
+          'KeyConditions' => array(
+            'cid' => array(
+              'AttributeValueList' => array(
+                array('S' => $cid)
+              ),
+              'ComparisonOperator' => 'EQ'
+            ),
+            'bin' => array(
+              'AttributeValueList' => array(
+                array('S' => $this->bin)
+              ),
+              'ComparisonOperator' => 'EQ'
+            ),
+          ),
+        ));
+        foreach ($iterator as $item) {
+          $this->dynamo->deleteItem(array(
+            'TableName' => $conf['dynamodb_table'],
+            'Key' => array(
+              'cid'   => array('S' => $item['cid']['S']),
+              'bin'   => array('S' => $this->bin),
+            )
+          ));
+        }
+      }
+    }
   }
 
   /**
-   * Implements DrupalCacheInterface::get().
+   * Implements DrupalCacheInterface::isEmpty().
    */
   function isEmpty() {
     return FALSE;
