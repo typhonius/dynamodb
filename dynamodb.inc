@@ -164,26 +164,14 @@ class DynamodbCache implements DrupalCacheInterface {
     else {
       if ($wildcard) {
         if ($cid == '*') {
-          $iterator = $this->dynamo->getIterator('Query', array(
-            'TableName'     => $conf['dynamodb_table'],
-            'KeyConditions' => array(
-              'bin' => array(
-                'AttributeValueList' => array(
-                  array('S' => $this->bin)
-                ),
-                'ComparisonOperator' => 'EQ'
-              ),
-            ),
+          // Flush an entire bin.
+          $this->dynamo->deleteItem(array(
+            'TableName' => $conf['dynamodb_table'],
+            'Key' => array(
+              'bin'   => array('S' => $this->bin),
+            )
           ));
-          foreach ($iterator as $item) {
-            $this->dynamo->deleteItem(array(
-              'TableName' => $conf['dynamodb_table'],
-              'Key' => array(
-                'cid'   => array('S' => $item['cid']['S']),
-                'bin'   => array('S' => $this->bin),
-              )
-            ));
-          }        }
+        }
         else {
           $iterator = $this->dynamo->getIterator('Query', array(
             'TableName'     => $conf['dynamodb_table'],
