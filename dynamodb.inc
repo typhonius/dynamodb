@@ -14,7 +14,7 @@ class DynamodbCache implements DrupalCacheInterface {
   protected $dynamo;
 
   function __construct($bin) {
-	  global $conf;
+    global $conf;
 
     $this->bin = $bin;
 
@@ -23,8 +23,7 @@ class DynamodbCache implements DrupalCacheInterface {
       'secret' => $conf['dynamodb_secret_key'],
       'region' => $conf['dynamodb_region_name'],
     ));
-
-	}
+  }
 
   /**
    * Implements DrupalCacheInterface::get().
@@ -37,7 +36,7 @@ class DynamodbCache implements DrupalCacheInterface {
       'TableName' => $conf['dynamodb_table'],
       'Key'       => array(
         'cid'   => array('S' => $cid),
-        'bin' => array('S' => $this->bin)
+        'bin' => array('S' => $this->bin),
       )
     ));
 
