@@ -137,39 +137,68 @@ class DynamodbCache implements DrupalCacheInterface {
         }
       }
       else {
-        $iterator = $this->dynamo->getIterator('Query', array(
-          'TableName'     => $conf['dynamodb_table'],
-          'KeyConditions' => array(
-            'expire' => array(
-              'AttributeValueList' => array(
-                array('N' => 1),
-                array('N' => REQUEST_TIME)
-              ),
-              'ComparisonOperator' => 'BETWEEN'
-            ),
-          ),
-        ));
-        foreach ($iterator as $item) {
-          $this->dynamo->deleteItem(array(
-            'TableName' => $conf['dynamodb_table'],
-            'Key' => array(
-              'cid'   => array('S' => $item['cid']['S']),
-              'bin'   => array('S' => $this->bin),
-            )
-          ));
-        }
+        // TODO use scan here instead as we must use $bin
+        /*
+                $iterator = $this->dynamo->getIterator('Query', array(
+                  'TableName'     => $conf['dynamodb_table'],
+                  'KeyConditions' => array(
+                    'bin' => array(
+                      'AttributeValueList' => array(
+                        array('S' => $this->bin),
+                      ),
+                      'ComparisonOperator' => 'EQ'
+                    ),
+                    'expire' => array(
+                      'AttributeValueList' => array(
+                        array('N' => 1),
+                        array('N' => REQUEST_TIME)
+                      ),
+                      'ComparisonOperator' => 'BETWEEN'
+                    ),
+                  ),
+                ));
+                foreach ($iterator as $item) {
+                  $this->dynamo->deleteItem(array(
+                    'TableName' => $conf['dynamodb_table'],
+                    'Key' => array(
+                      'cid'   => array('S' => $item['cid']['S']),
+                      'bin'   => array('S' => $this->bin),
+                    )
+                  ));
+                }
+        */
       }
     }
     else {
       if ($wildcard) {
         if ($cid == '*') {
+          $count = 0;
+          $cids = array();
           // Flush an entire bin.
-          $this->dynamo->deleteItem(array(
-            'TableName' => $conf['dynamodb_table'],
-            'Key' => array(
-              'bin'   => array('S' => $this->bin),
-            )
+          $iterator = $this->dynamo->getIterator('Query', array(
+            'TableName'     => $conf['dynamodb_table'],
+            'KeyConditions' => array(
+              'bin' => array(
+                'AttributeValueList' => array(
+                  array('S' => $this->bin)
+                ),
+                'ComparisonOperator' => 'EQ'
+              ),
+            ),
           ));
+          foreach ($iterator as $item) {
+            if ($item['cid']['S']) {
+              $cids[] = $item['cid']['S'];
+              $count++;
+              // The batchWriteItem method AWS uses has a limit of 25 requests at once.
+              if ($count == 25) {
+                $this->batchClear($cids);
+              }
+            }
+
+            $this->batchClear($cids);
+          }
+
         }
         else {
           $iterator = $this->dynamo->getIterator('Query', array(
@@ -214,6 +243,34 @@ class DynamodbCache implements DrupalCacheInterface {
         ));
       }
     }
+  }
+
+  /**
+   * Implementation of batchWriteItem for cache clears.
+   * This allows multiple cids to be cleared in one API call.
+   */
+  function batchClear(Array $cids) {
+    global $conf;
+
+    // Create the structure AWS expects out of cids to be deleted.
+    $requests = array();
+    foreach ($cids as $cid) {
+      $requests[] = array(
+        'DeleteRequest' => array(
+          'Key' => array(
+            'cid' => array('S' => $cid),
+            'bin' => array('S' => $this->bin),
+          ),
+        ),
+      );
+    }
+
+    $this->dynamo->batchWriteItem(array(
+      'RequestItems' => array(
+        $conf['dynamodb_table'] => $requests,
+      ),
+    ));
+
   }
 
   /**
