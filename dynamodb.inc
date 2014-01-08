@@ -31,6 +31,15 @@ class DynamodbCache implements DrupalCacheInterface {
   function get($cid) {
     global $conf;
 
+    // Currently, anything that gets set/got after (or in) the DrupalCacheArray
+    // destructor is causing problems with the AWS SDK. There is an open issue on
+    // github to address this https://github.com/guzzle/guzzle/issues/520
+    // Until then, this will ignore those variables and prevent a loop which
+    // devoids the site of all memory.
+    if (strpos($cid, 'schema:runtime') === 0 || strpos($cid, 'theme_registry:runtime') === 0) {
+      return FALSE;
+    }
+
     $result = $this->dynamo->getItem(array(
       'ConsistentRead' => true,
       'TableName' => $conf['dynamodb_table'],
@@ -71,6 +80,15 @@ class DynamodbCache implements DrupalCacheInterface {
    */
   function set($cid, $data, $expire = CACHE_PERMANENT) {
     global $conf;
+
+    // Currently, anything that gets set/got after (or in) the DrupalCacheArray
+    // destructor is causing problems with the AWS SDK. There is an open issue on
+    // github to address this https://github.com/guzzle/guzzle/issues/520
+    // Until then, this will ignore those variables and prevent a loop which
+    // devoids the site of all memory.
+    if (strpos($cid, 'schema:runtime') === 0 || strpos($cid, 'theme_registry:runtime') === 0) {
+      return FALSE;
+    }
 
     // Since DynamoDB has a max item size of 64k, we must compress the data to
     // be cached in order to store it.
