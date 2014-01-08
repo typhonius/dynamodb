@@ -130,6 +130,7 @@ class DynamodbCache implements DrupalCacheInterface {
           variable_set('cache_flush_' . $this->bin, REQUEST_TIME);
         }
         elseif (REQUEST_TIME > ($cache_flush + variable_get('cache_lifetime', 0))) {
+          /*
           $iterator = $this->dynamo->getIterator('Query', array(
             'TableName'     => $conf['dynamodb_table'],
             'KeyConditions' => array(
@@ -139,6 +140,12 @@ class DynamodbCache implements DrupalCacheInterface {
                   array('N' => REQUEST_TIME)
                 ),
                 'ComparisonOperator' => 'BETWEEN'
+              ),
+              'bin' => array(
+                'AttributeValueList' => array(
+                  array('S' => $this->bin),
+                ),
+                'ComparisonOperator' => 'EQ'
               ),
             ),
           ));
@@ -152,6 +159,7 @@ class DynamodbCache implements DrupalCacheInterface {
             ));
           }
           variable_set('cache_flush_' . $this->bin, 0);
+          */
         }
       }
       else {
