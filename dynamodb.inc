@@ -216,7 +216,8 @@ class DynamodbCache implements DrupalCacheInterface {
             if ($item['cid']['S']) {
               $cids[] = $item['cid']['S'];
               $count++;
-              // The batchWriteItem method AWS uses has a limit of 25 requests at once.
+              // The batchWriteItem method AWS uses has a limit of 25 requests
+              // at once.
               if ($count == 25) {
                 $this->batchClear($cids);
               }
@@ -272,15 +273,17 @@ class DynamodbCache implements DrupalCacheInterface {
   }
 
   /**
-   * Implementation of batchWriteItem for cache clears.
-   * This allows multiple cids to be cleared in one API call.
+   * Implementation of batchWriteItem for cache clears. This allows multiple
+   * cache ids to be cleared in one API call.
+   *
+   * @param array $cids
    */
-  function batchClear(Array $cids) {
+  function batchClear(Array &$cids) {
     global $conf;
 
     // Create the structure AWS expects out of cids to be deleted.
     $requests = array();
-    foreach ($cids as $cid) {
+    foreach ($cids as $index => $cid) {
       $requests[] = array(
         'DeleteRequest' => array(
           'Key' => array(
@@ -289,6 +292,8 @@ class DynamodbCache implements DrupalCacheInterface {
           ),
         ),
       );
+      unset($cids[$index]);
+
     }
 
     $this->dynamo->batchWriteItem(array(
